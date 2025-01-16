@@ -1,4 +1,5 @@
 const std = @import("std");
+const client = @import("client.zig");
 
 const posix = std.posix;
 
@@ -23,7 +24,6 @@ pub const Server = struct {
 
         try self.printAddress(listener);
 
-        var buf: [128]u8 = undefined;
         while (true) {
             var client_address: std.net.Address = undefined;
             var client_address_len: posix.socklen_t = @sizeOf(std.net.Address);
@@ -32,26 +32,9 @@ pub const Server = struct {
                 std.debug.print("error: accept: {}\n", .{err});
                 continue;
             };
-            defer {
-                posix.close(socket);
-                std.debug.print("{} closed\n", .{client_address});
-            }
 
-            std.debug.print("{} connected\n", .{client_address});
-
-            // Set read/write timeout
-            // const timeout = posix.timeval{ .sec = 10, .usec = 500_000 };
-            // try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &std.mem.toBytes(timeout));
-            // try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.SNDTIMEO, &std.mem.toBytes(timeout));
-
-            // we've changed everything from this point on
-            const stream = std.net.Stream{ .handle = socket };
-
-            const read = try stream.read(&buf);
-            if (read == 0) {
-                continue;
-            }
-            try stream.writeAll(buf[0..read]);
+            const c = client.Client.init(socket, client_address);
+            try c.handle();
         }
     }
 
