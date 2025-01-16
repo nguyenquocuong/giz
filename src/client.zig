@@ -2,31 +2,13 @@ const std = @import("std");
 
 const posix = std.posix;
 
-const Reader = struct {
-    buf: []u8,
-    pos: usize = 0,
-    start: usize = 0,
-    socket: posix.socket_t,
+pub fn init(socket: posix.socket_t, address: std.net.Address) Client {
+    return Client{ .socket = socket, .address = address };
+}
 
-    fn readMessage(self: *Reader) ![]u8 {
-        var buf = self.buf;
-
-        const n = try posix.read(self.socket, buf);
-        if (n == 0) {
-            return error.Closed;
-        }
-
-        return buf[0..n];
-    }
-};
-
-pub const Client = struct {
+const Client = struct {
     socket: posix.socket_t,
     address: std.net.Address,
-
-    pub fn init(socket: posix.socket_t, address: std.net.Address) Client {
-        return Client{ .socket = socket, .address = address };
-    }
 
     pub fn handle(self: Client) !void {
         const socket = self.socket;
@@ -52,5 +34,23 @@ pub const Client = struct {
             };
             std.debug.print("Got: {s}\n", .{msg});
         }
+    }
+};
+
+const Reader = struct {
+    buf: []u8,
+    pos: usize = 0,
+    start: usize = 0,
+    socket: posix.socket_t,
+
+    fn readMessage(self: *Reader) ![]u8 {
+        var buf = self.buf;
+
+        const n = try posix.read(self.socket, buf);
+        if (n == 0) {
+            return error.Closed;
+        }
+
+        return buf[0..n];
     }
 };

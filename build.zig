@@ -3,7 +3,7 @@ const std = @import("std");
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -14,6 +14,66 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
+
+    const giz_mod = b.addModule("giz", .{
+        .root_source_file = b.path("src/giz.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const all_step = b.step("all", "build all examples");
+
+    inline for ([_]struct {
+        name: []const u8,
+        src: []const u8,
+    }{
+        .{ .name = "server", .src = "examples/server.zig" },
+    }) |excfg| {
+        const ex_name = excfg.name;
+        const ex_src = excfg.src;
+
+        const ex_build_desc = try std.fmt.allocPrint(
+            b.allocator,
+            "build the {s} example",
+            .{ex_name},
+        );
+        const ex_run_stepname = try std.fmt.allocPrint(
+            b.allocator,
+            "run {s}",
+            .{ex_name},
+        );
+        const ex_run_stepdesc = try std.fmt.allocPrint(
+            b.allocator,
+            "run the {s} example",
+            .{ex_name},
+        );
+        const example_run_step = b.step(ex_run_stepname, ex_run_stepdesc);
+        const example_step = b.step(ex_name, ex_build_desc);
+
+        var example = b.addExecutable(.{
+            .name = ex_name,
+            .root_source_file = b.path(ex_src),
+            .target = target,
+            .optimize = optimize,
+        });
+
+        example.root_module.addImport("giz", giz_mod);
+
+        // const example_run = example.run();
+        const example_run = b.addRunArtifact(example);
+        example_run_step.dependOn(&example_run.step);
+
+        // install the artifact - depending on the "example"
+        const example_build_step = b.addInstallArtifact(example, .{});
+        example_step.dependOn(&example_build_step.step);
+
+        // ignore https in all because of required -Dopenssl=true
+        // TODO: fix GH pipeline to take care of that
+        // or: auto-provide openssl for https in build.zig
+        if (!std.mem.eql(u8, ex_name, "https")) {
+            all_step.dependOn(&example_build_step.step);
+        }
+    }
 
     // This creates a "module", which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.

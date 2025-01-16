@@ -1,18 +1,18 @@
 const std = @import("std");
-const client = @import("client.zig");
+const giz = @import("giz.zig");
 
 const posix = std.posix;
 
 pub const Options = struct { address: []const u8 = "0.0.0.0", port: u16 = 1234 };
 
-pub const Server = struct {
+pub fn init(options: Options) !Server {
+    const address = try std.net.Address.parseIp(options.address, options.port);
+
+    return Server{ .address = address };
+}
+
+const Server = struct {
     address: std.net.Address,
-
-    pub fn init(options: Options) !Server {
-        const address = try std.net.Address.parseIp(options.address, options.port);
-
-        return Server{ .address = address };
-    }
 
     pub fn listen(self: Server) !void {
         const listener = try std.posix.socket(self.address.any.family, posix.SOCK.STREAM, posix.IPPROTO.TCP);
@@ -33,8 +33,8 @@ pub const Server = struct {
                 continue;
             };
 
-            const c = client.Client.init(socket, client_address);
-            try c.handle();
+            const client = giz.Client.init(socket, client_address);
+            try client.handle();
         }
     }
 
